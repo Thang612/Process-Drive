@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive Folder Files</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        input[type="text"], input[type="file"] {
+            width: 80%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        h2 {
+            margin-top: 30px;
+        }
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Google Drive Folder Files</h1>
+
+    <label for="sampleUrl">Nhập đường dẫn thư mục Sample:</label>
+    <input type="text" id="sampleUrl" placeholder="Nhập đường dẫn Google Drive folder...">
+    <br/>
+    <label for="mockupUrl">Nhập đường dẫn thư mục Mockup:</label>
+    <input type="text" id="mockupUrl" placeholder="Nhập đường dẫn Google Drive folder...">
+    <br/>
+    <label for="excelFile">Chọn tệp Excel:</label>
+    <input type="file" id="excelFile" accept=".xlsx, .xls">
+    <br/>
+    <button onclick="getFolderFiles()">Lấy danh sách tập tin</button>
+    <button onclick="downloadProcessedExcel()">Tải xuống tệp đã xử lý</button>
+
+    <h2>Kết quả Sample:</h2>
+    <ul id="sampleResult"></ul>
+
+    <h2>Kết quả Mockup:</h2>
+    <ul id="mockupResult"></ul>
+
+    <h2>Kết quả Excel:</h2>
+    <table id="excelTable">
+        <thead>
+            <tr>
+                <!-- Update with the number of columns in your Excel file -->
+                <th>Column P</th>
+                <th>Column Q</th>
+                <th>Column S</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+    <script>
+        let processedWorkbook;
+
+        function extractFolderId(url) {
+            const folderIdMatch = url.match(/[-\w]{25,}/);
+            return folderIdMatch ? folderIdMatch[0] : null;
+        }
+
+        function getFilesFromFolder(folderId, resultElementId) {
+            const apiUrl = `https://script.google.com/macros/s/AKfycbwywzrRLbqpXZ8A_P0BxYEZE3AL1q73__wGAd4B2JdENptMkVyga7qd1uSLhpkcEhwXcg/exec?folderId=${folderId}`;
+            
+            return fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const resultElement = document.getElementById(resultElementId);
+                    resultElement.innerHTML = '';
+
+                    data.forEach(file => {
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.href = file.url;
+                        a.textContent = file.name;
+                        a.target = '_blank';
+                        li.appendChild(a);
+                        resultElement.appendChild(li);
+                    });
+
+                    return data;  // Trả về mảng các tập tin
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Đã có lỗi xảy ra khi lấy dữ liệu. Vui lòng thử lại.');
+                });
+        }
+
+        function processExcel(sampleFiles, mockupFiles) {
+    const fileInput = document.getElementById('excelFile');
+    const file = fileInput.files[0];
+    if (!file) {
+        alert('Please select an Excel file first.');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        // Clear previous results
+        const tableBody = document.getElementById('excelTable')?.querySelector('tbody');
+        if (tableBody) tableBody.innerHTML = '';
+
+        // Thêm cột mới vào đầu bảng dữ liệu
+        const updatedRows = [rows[0].concat(['Sample File URL', 'Mockup File URL'])]; // Thêm tiêu đề cột mới
+
+        rows.slice(1).forEach((row, index) => {
+            const pValue = row[15] ? row[15].toString().toLowerCase() : '';  // Cột P
+
+            // So sánh với tên file trong Sample
+            const sampleMatch = sampleFiles.find(file => file.name.replace(/\.[^/.]+$/, "").toLowerCase() === pValue);
+            const sampleFileUrl = sampleMatch ? sampleMatch.url : '';
+
+            // So sánh với tên file trong Mockup
+            const mockupMatch = mockupFiles.find(file => file.name.replace(/\.[^/.]+$/, "").toLowerCase() === pValue);
+            const mockupFileUrl = mockupMatch ? mockupMatch.url : '';
+
+            // Cập nhật dữ liệu vào hàng hiện tại
+            const updatedRow = row.slice(); // Tạo bản sao của hàng hiện tại
+            updatedRow[16] = sampleFileUrl;  // Cột Q (index 16)
+            updatedRow[18] = mockupFileUrl;  // Cột S (index 18)
+
+            updatedRows.push(updatedRow);
+
+            // Hiển thị kết quả trong bảng nếu có
+            if (tableBody) {
+                const rowElement = document.createElement('tr');
+                updatedRow.forEach(cell => {
+                    const cellElement = document.createElement('td');
+                    cellElement.textContent = cell;
+                    rowElement.appendChild(cellElement);
+                });
+                tableBody.appendChild(rowElement);
+            }
+        });
+
+        // Cập nhật lại dữ liệu vào sheet
+        const newSheet = XLSX.utils.aoa_to_sheet(updatedRows);
+        workbook.Sheets[sheetName] = newSheet;
+
+        // Lưu workbook đã xử lý
+        processedWorkbook = workbook;
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+
+
+        function downloadProcessedExcel() {
+            if (!processedWorkbook) {
+                alert('No processed data to download.');
+                return;
+            }
+
+            const wbout = XLSX.write(processedWorkbook, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([wbout], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'processed_data.xlsx';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function getFolderFiles() {
+            const sampleUrl = document.getElementById('sampleUrl').value;
+            const mockupUrl = document.getElementById('mockupUrl').value;
+            
+            const sampleFolderId = extractFolderId(sampleUrl);
+            const mockupFolderId = extractFolderId(mockupUrl);
+
+            if (!sampleFolderId || !mockupFolderId) {
+                alert('Không thể lấy được Folder ID từ URL. Vui lòng kiểm tra lại.');
+                return;
+            }
+
+            // Lấy các tập tin từ thư mục Sample và Mockup
+            const sampleFilesPromise = getFilesFromFolder(sampleFolderId, 'sampleResult');
+            const mockupFilesPromise = getFilesFromFolder(mockupFolderId, 'mockupResult');
+
+            // Khi cả hai yêu cầu hoàn thành, xử lý mảng dữ liệu
+            Promise.all([sampleFilesPromise, mockupFilesPromise]).then(([sampleFiles, mockupFiles]) => {
+                processExcel(sampleFiles, mockupFiles);
+            });
+        }
+    </script>
+
+</body>
+</html>
