@@ -160,11 +160,17 @@
             const mockupMatch = mockupFiles.find(file => file.name.replace(/\.[^/.]+$/, "").toLowerCase() === pValue);
             const mockupFileUrl = mockupMatch ? mockupMatch.url : '';
 
+            const mockupBack = sampleFiles.find(file => {
+                const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "").toLowerCase();
+                const mockupFileBaseName = pValue + "a".toLowerCase(); // Dự đoán tên file cần so sánh
+                return fileNameWithoutExt === mockupFileBaseName;
+            });
+            const mockupBackUrl = mockupBack ? mockupBack.url : '';
             // Cập nhật dữ liệu vào hàng hiện tại
             const updatedRow = row.slice(); // Tạo bản sao của hàng hiện tại
             updatedRow[16] = sampleFileUrl;  // Cột Q (index 16)
             updatedRow[18] = mockupFileUrl;  // Cột S (index 18)
-
+            updatedRow[17] = mockupBackUrl;     //
             updatedRows.push(updatedRow);
 
             // Hiển thị kết quả trong bảng nếu có
